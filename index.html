@@ -2253,14 +2253,14 @@
     }
   });
 
-  function refreshOrgGridPreservingVisibleCount() {
+  function applyFiltersPreservingVisibleCount() {
     const savedCount = visibleCount;
     const grid = document.getElementById('orgGrid');
     if (!grid) return;
-    // renderOrgs(true) clears the grid and resets visibleCount to 12, rendering
-    // the first page. We then keep appending subsequent pages until we reach
-    // the count the user had previously scrolled to, so no cards are lost.
-    renderOrgs(true);
+    // applyFilters() updates the filteredOrgs list and calls renderOrgs(true)
+    // which resets visibleCount to 12. We then keep appending subsequent pages
+    // until we reach the count the user had previously scrolled to.
+    applyFilters();
     while (visibleCount < savedCount && visibleCount < filteredOrgs.length) {
       visibleCount += 12;
       renderOrgs(false);
@@ -2279,7 +2279,7 @@
     if (shouldAdd) bookmarkedSet.add(name);
     else           bookmarkedSet.delete(name);
     localStorage.setItem('bookmarks', JSON.stringify([...bookmarkedSet]));
-    refreshOrgGridPreservingVisibleCount();
+    applyFiltersPreservingVisibleCount();
     renderWatchlist();
     updateAIInsights();
   }
@@ -2298,7 +2298,7 @@
     // any in-memory state from index.html toggles is also preserved.
     fresh.forEach(n => bookmarkedSet.add(n));
     [...bookmarkedSet].forEach(n => { if (!fresh.has(n)) bookmarkedSet.delete(n); });
-    refreshOrgGridPreservingVisibleCount();
+    applyFiltersPreservingVisibleCount();
     renderWatchlist();
     updateAIInsights();
   });
@@ -2311,7 +2311,7 @@
     if (!confirm(`Remove all ${bookmarkedSet.size} bookmarked organization(s)? This cannot be undone.`)) return;
     bookmarkedSet.clear();
     localStorage.setItem('bookmarks', JSON.stringify([]));
-    refreshOrgGridPreservingVisibleCount();
+    applyFiltersPreservingVisibleCount();
     renderWatchlist();
     updateAIInsights();
   }
