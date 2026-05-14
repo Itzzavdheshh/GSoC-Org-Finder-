@@ -1354,6 +1354,45 @@
     return null;
   }
 
+  function parseStoredBookmarks() {
+    try {
+      const parsed = JSON.parse(localStorage.getItem('bookmarks') || '[]');
+      return Array.isArray(parsed) ? parsed : [];
+    } catch {
+      return [];
+    }
+  }
+
+  function trimGitHubPathSlashes(path) {
+    let start = 0;
+    let end = path.length;
+    while (start < end && path[start] === '/') start += 1;
+    while (end > start && path[end - 1] === '/') end -= 1;
+    return path.slice(start, end);
+  }
+
+  function githubPathFromValue(value) {
+    const github = String(value || '').trim();
+    if (!github) return '';
+    try {
+      const url = new URL(github);
+      const hostname = url.hostname.toLowerCase();
+      if (hostname !== 'github.com' && hostname !== 'www.github.com') return '';
+      return trimGitHubPathSlashes(url.pathname);
+    } catch {
+      return trimGitHubPathSlashes(github);
+    }
+  }
+
+  function githubOwnerFromValue(value) {
+    return githubPathFromValue(value).split('/')[0] || '';
+  }
+
+  function githubUrlFromValue(value) {
+    const path = githubPathFromValue(value);
+    return path ? `https://github.com/${path}` : null;
+  }
+
   // NOTE: For JS-string contexts inside inline event handlers,
   // we must also escape quotes. Prefer removing inline handlers.
 
@@ -1367,11 +1406,7 @@
   let mentorDataState = 'idle';
   let compareList = [];
   const bookmarkedSet = (() => {
-    try {
-      const raw = localStorage.getItem('bookmarks');
-      const parsed = raw ? JSON.parse(raw) : [];
-      return new Set(Array.isArray(parsed) ? parsed : []);
-    } catch { return new Set(); }
+    return new Set(parseStoredBookmarks());
   })();
 
   const selectedLanguages = new Set();
@@ -1803,7 +1838,7 @@
         bodyHtml = '<p class="text-sm text-zinc-600">Mentor data unavailable right now.</p>';
       }
 
-      const contactHref = primary?.url || org.ideas || `https://github.com/${org.github}`;
+      const contactHref = primary?.url || org.ideas || githubUrlFromValue(org.github);
       const safeContactHref = sanitizeHrefUrl(contactHref);
 
       return `
@@ -2042,7 +2077,7 @@
       card.className = 'group bg-white rounded-2xl p-6 border border-zinc-100 transition-all hover:shadow-xl hover:border-primary/20 animate-fade-up';
       card.dataset.org = org.name;
       
-      const githubOwner = org.github.split('/')[0];
+      const githubOwner = githubOwnerFromValue(org.github);
       const logoUrl = `https://github.com/${githubOwner}.png?size=80`;
       
       card.innerHTML = `
@@ -2145,7 +2180,7 @@
     
     compareList.forEach(name => {
       const org = ORGS.find(o => o.name === name);
-      const githubOwner = org.github.split('/')[0];
+      const githubOwner = githubOwnerFromValue(org.github);
       const logoUrl = `https://github.com/${githubOwner}.png?size=80`;
       
       const item = document.createElement('div');
@@ -2270,35 +2305,57 @@
   // ══════════════════════════════════════════════
   // WATCHLIST — centralised bookmark sync helper
   // ══════════════════════════════════════════════
+  function refreshVisibleBookmarkButtons() {
+    document.querySelectorAll('#orgGrid .bookmark-btn[data-bookmark-org]').forEach(btn => {
+      const isBookmarked = bookmarkedSet.has(btn.dataset.bookmarkOrg);
+      btn.classList.toggle('active', isBookmarked);
+      btn.classList.toggle('text-zinc-300', !isBookmarked);
+      btn.title = isBookmarked ? 'Remove bookmark' : 'Add bookmark';
+      btn.querySelector('.material-symbols-outlined')?.classList.toggle('icon-fill', isBookmarked);
+    });
+  }
+
+  function refreshOrgGridAfterBookmarkChange() {
+    if (activeChip === 'bookmarked') {
+      applyFiltersPreservingVisibleCount();
+      return;
+    }
+    refreshVisibleBookmarkButtons();
+  }
+
   /**
    * Single source-of-truth writer for bookmarks.
    * Always keeps bookmarkedSet (in-memory) + localStorage in lock-step.
-   * Also re-renders the org grid so star icons update immediately.
+   * Re-filters only when the active filter depends on bookmark state.
    */
   function syncBookmark(name, shouldAdd) {
-    if (shouldAdd) bookmarkedSet.add(name);
-    else           bookmarkedSet.delete(name);
+    const orgName = typeof name === 'number' ? ORGS[name]?.name : name;
+    if (!orgName) return;
+    if (shouldAdd) bookmarkedSet.add(orgName);
+    else           bookmarkedSet.delete(orgName);
     localStorage.setItem('bookmarks', JSON.stringify([...bookmarkedSet]));
-    applyFiltersPreservingVisibleCount();
+    refreshOrgGridAfterBookmarkChange();
     renderWatchlist();
     updateAIInsights();
   }
 
   function toggleBookmark(e, name) {
     if (e) e.stopPropagation();
-    syncBookmark(name, !bookmarkedSet.has(name));
+    const orgName = typeof name === 'number' ? ORGS[name]?.name : name;
+    if (!orgName) return;
+    syncBookmark(orgName, !bookmarkedSet.has(orgName));
   }
 
   // Listen for bookmarks toggled by app.js (the other org-grid script).
   // When app.js fires 'bookmarkChanged', we re-read localStorage so
   // bookmarkedSet stays in sync, then refresh the Watchlist panel.
   document.addEventListener('bookmarkChanged', () => {
-    const fresh = new Set(JSON.parse(localStorage.getItem('bookmarks') || '[]'));
+    const fresh = new Set(parseStoredBookmarks());
     // Diff: add new entries, remove stale ones — no full replacement so
     // any in-memory state from index.html toggles is also preserved.
     fresh.forEach(n => bookmarkedSet.add(n));
     [...bookmarkedSet].forEach(n => { if (!fresh.has(n)) bookmarkedSet.delete(n); });
-    applyFiltersPreservingVisibleCount();
+    refreshOrgGridAfterBookmarkChange();
     renderWatchlist();
     updateAIInsights();
   });
@@ -2311,7 +2368,7 @@
     if (!confirm(`Remove all ${bookmarkedSet.size} bookmarked organization(s)? This cannot be undone.`)) return;
     bookmarkedSet.clear();
     localStorage.setItem('bookmarks', JSON.stringify([]));
-    applyFiltersPreservingVisibleCount();
+    applyFilters();
     renderWatchlist();
     updateAIInsights();
   }
@@ -2344,7 +2401,7 @@
 
     // ── Render one card per bookmarked org ────────────────────────────────────
     bookmarks.forEach(org => {
-      const githubOwner = (org.github || '').split('/')[0];
+      const githubOwner = githubOwnerFromValue(org.github);
       const logoUrl     = githubOwner
         ? `https://github.com/${githubOwner}.png?size=80`
         : '';
@@ -2554,7 +2611,7 @@
 
     // Sanitize and set idea/repo links
     const ideasUrl = sanitizeHrefUrl(org.ideas);
-    const repoUrl = sanitizeHrefUrl(`https://github.com/${org.github}`);
+    const repoUrl = sanitizeHrefUrl(githubUrlFromValue(org.github));
     const ideasBtn = document.getElementById('mIdeasBtn');
     const repoBtn = document.getElementById('mRepoBtn');
     if (ideasBtn) {
