@@ -682,7 +682,7 @@ function repoUrl(o){
   const path=githubPathFromValue(o.github);
   // Umbrella orgs → link to their org page; single-project orgs → their specific repo
   if(UMBRELLA_ORGS.has(o.name)||!path.includes('/'))
-    return`https://github.com/${owner}`;
+    return owner ? `https://github.com/${owner}` : '';
   return githubUrlFromValue(o.github);
 }
 function repoLinkLabel(o){
@@ -1022,7 +1022,7 @@ function openModal(idx){
     const owner=githubOwnerFromValue(o.github);
     const path=githubPathFromValue(o.github);
     const isUmbrella=UMBRELLA_ORGS.has(o.name)||!path.includes('/');
-    mLinkEl.href=isUmbrella?`https://github.com/${owner}`:githubUrlFromValue(o.github);
+    mLinkEl.href=isUmbrella?(owner ? `https://github.com/${owner}` : ''):githubUrlFromValue(o.github);
     mLinkEl.textContent=isUmbrella?'View GitHub Org →':'View Repository →';
   }
   

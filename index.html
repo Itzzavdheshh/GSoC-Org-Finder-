@@ -2078,7 +2078,7 @@
       card.dataset.org = org.name;
       
       const githubOwner = githubOwnerFromValue(org.github);
-      const logoUrl = `https://github.com/${githubOwner}.png?size=80`;
+      const logoUrl = githubOwner ? `https://github.com/${githubOwner}.png?size=80` : '';
       
       card.innerHTML = `
         <div class="flex justify-between items-start mb-4">
@@ -2181,7 +2181,7 @@
     compareList.forEach(name => {
       const org = ORGS.find(o => o.name === name);
       const githubOwner = githubOwnerFromValue(org.github);
-      const logoUrl = `https://github.com/${githubOwner}.png?size=80`;
+      const logoUrl = githubOwner ? `https://github.com/${githubOwner}.png?size=80` : '';
       
       const item = document.createElement('div');
       item.className = 'bg-white rounded-xl p-4 border border-zinc-100';
@@ -3094,6 +3094,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
 });
 </script>
+<script src="src/js/app.js"></script>
 <script src="src/js/githubAnalyzer.js"></script>
 <script src="src/js/skillExtractor.js"></script>
 <script src="src/js/recommender.js"></script>
