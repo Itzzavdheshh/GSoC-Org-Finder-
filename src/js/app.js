@@ -1125,7 +1125,7 @@ async function fetchAllIssues(){
         const data=await r.json();
         if(data.items?.length){
           const owner=githubOwnerFromValue(o.github);
-          const logo=`https://github.com/${owner}.png?size=64`;
+          const logo=owner ? `https://github.com/${owner}.png?size=64` : '';
           data.items.forEach(issue=>{
             const labelNames=(issue.labels||[]).map(l=>typeof l==='string'?l:(l.name||''));
             allIssues.push({
